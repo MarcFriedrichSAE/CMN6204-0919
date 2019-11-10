@@ -13,6 +13,7 @@
 class UCapsuleComponent;
 class UCameraComponent;
 class ABullet;
+class ATeleportPoint;
 #pragma endregion
 
 UCLASS()
@@ -108,9 +109,21 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Player")
 	/// <summary>
-	/// shoot
+	/// shoot a bullet
 	/// </summary>
 	void Shoot();
+
+	UFUNCTION(BlueprintCallable, Category = "Player")
+	/// <summary>
+	/// show teleport locations
+	/// </summary>
+	void ShowTeleport();
+
+	UFUNCTION(BlueprintCallable, Category = "Player")
+	/// <summary>
+	/// teleport to location
+	/// </summary>
+	void Teleport();
 #pragma endregion
 
 protected:
@@ -119,5 +132,32 @@ protected:
 	/// called at begin play
 	/// </summary>
 	virtual void BeginPlay() override;
+#pragma endregion
+
+private:
+#pragma region private primitive variable
+	/// <summary>
+	/// show teleport locations active
+	/// </summary>
+	bool m_teleportActive = false;
+#pragma endregion
+
+#pragma region private variable
+	/// <summary>
+	/// all teleport locations
+	/// </summary>
+	TArray<ATeleportPoint*> m_teleports;
+#pragma endregion
+
+#pragma region private pointer
+	/// <summary>
+	/// teleport target reference
+	/// </summary>
+	ATeleportPoint* m_pTeleportTarget = nullptr;
+
+	/// <summary>
+	/// active teleport reference
+	/// </summary>
+	ATeleportPoint* m_pActiveTeleport = nullptr;
 #pragma endregion
 };
