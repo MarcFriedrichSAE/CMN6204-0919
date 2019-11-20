@@ -136,5 +136,9 @@ void AEnemy::BeginPlay()
 			m_pSpline = ((ASpawnPoint*)(FoundActors[i]))->Spline;
 		}
 	}
+
+	// set actor location to spline
+	SetActorLocation(FVector(m_pSpline->GetComponentLocation().X, m_pSpline->GetComponentLocation().Y, 
+		m_pSpline->GetComponentLocation().Z + 0.1f));
 }
 #pragma endregion

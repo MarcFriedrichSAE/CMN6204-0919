@@ -1,0 +1,7 @@
+- Performance beachten
+- Motion Sickness
+- Ziel Gruppe kennen (VR Kenner vs Neulinge)
+- Requirements Headset (offizielle Anforderungen beachten)
+- 90 bis 120 FPS
+- Forward Rendering benutzen
+- Development Zeit einiges höher als bei Desktop Anwendungen

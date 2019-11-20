@@ -21,7 +21,7 @@ public class WaveShooterVR : ModuleRules
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
 
         // add private modules
-        PrivateDependencyModuleNames.AddRange(new string[] { });
+        PrivateDependencyModuleNames.AddRange(new string[] { "HeadMountedDisplay" });
     }
     #endregion
 }

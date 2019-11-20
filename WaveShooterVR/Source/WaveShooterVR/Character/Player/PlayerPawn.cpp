@@ -1,5 +1,6 @@
 #pragma region project include
 #include "PlayerPawn.h"
+#include "Character/Base/BaseCharacter.h"
 #include "Gameplay/Bullet/Bullet.h"
 #include "Gameplay/Teleport/TeleportPoint.h"
 #include "Gameplay/Spawn/SpawnPlayer.h"
@@ -9,8 +10,10 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "MotionControllerComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h" // only for debug line
 #pragma endregion
 
 #pragma region constructor
@@ -24,25 +27,40 @@ APlayerPawn::APlayerPawn()
 	USceneComponent* pRoot = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = pRoot;
 
-	// create default capsule component and attach to root
-	Capsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Capsule"));
-	Capsule->SetupAttachment(pRoot);
+	// create default camera component and attach to root
+	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
+	Camera->SetupAttachment(pRoot);
 
-	// create default scene component and attach to capsule
+	// create default capsule component and attach to camera
+	Capsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Capsule"));
+	Capsule->SetupAttachment(Camera);
+
+	// create default motion controller component and attach to root
+	m_pLeftController = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("LeftController"));
+	m_pLeftController->SetupAttachment(pRoot);
+
+	// create default static mesh component, attach to left controller and set collision profile to player
+	LeftHand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LeftHand"));
+	LeftHand->SetupAttachment(m_pLeftController);
+	LeftHand->SetCollisionProfileName("Player");
+
+	// create default motion controller component, attach to root and set as right hand
+	m_pRightController = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("RightController"));
+	m_pRightController->SetupAttachment(pRoot);
+	m_pRightController->SetTrackingSource(EControllerHand::Right);
+
+	// create default static mesh component, attach to right controller and set collision profile to player
+	RightHand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RightHand"));
+	RightHand->SetupAttachment(m_pRightController);
+	RightHand->SetCollisionProfileName("Player");
+
+	// create default scene component and attach to right controller
 	SpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("SpawnPoint"));
-	SpawnPoint->SetupAttachment(Capsule);
+	SpawnPoint->SetupAttachment(m_pRightController);
 
 	// create default skeletal mesh component and attach to capsule
 	Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
-	Mesh->SetupAttachment(Capsule);
-
-	// create default scene component and attach to capsule
-	CameraRoot = CreateDefaultSubobject<USceneComponent>(TEXT("CameraRoot"));
-	CameraRoot->SetupAttachment(Capsule);
-
-	// create default camera component and attach to camera root
-	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
-	Camera->SetupAttachment(CameraRoot);
+	Mesh->SetupAttachment(Capsule);	
 
 	// add player tag
 	Tags.Add("Player");
@@ -84,10 +102,13 @@ void APlayerPawn::Tick(float DeltaTime)
 	FHitResult hit;
 
 	// get target to trace to
-	FVector target = Camera->GetComponentLocation() + Camera->GetForwardVector() * 10000.0f;
+	FVector target = m_pLeftController->GetComponentLocation() + m_pLeftController->GetForwardVector() * 10000.0f;
+
+	// debug line to visualize teleport target
+	DrawDebugLine(GetWorld(), m_pLeftController->GetComponentLocation(), target, FColor::Blue, false, 2.0f * DeltaTime, 0, 1.0f);
 
 	// if trace from camera to target hit nothing
-	if (!GetWorld()->LineTraceSingleByChannel(hit, Camera->GetComponentLocation(), target, ECollisionChannel::ECC_Camera))
+	if (!GetWorld()->LineTraceSingleByChannel(hit, m_pLeftController->GetComponentLocation(), target, ECollisionChannel::ECC_Camera))
 	{
 		// if teleport target valid reset scale
 		if (m_pTeleportTarget)
@@ -142,7 +163,9 @@ void APlayerPawn::Tick(float DeltaTime)
 // move player
 void APlayerPawn::Move(float ForwardBack, float LeftRight)
 {
-	// if not local player return
+	/// TODO: move in vr
+
+	/*// if not local player return
 	if (!IsLocallyControlled())
 		return;
 
@@ -160,37 +183,7 @@ void APlayerPawn::Move(float ForwardBack, float LeftRight)
 	
 	// if client move player on server
 	else
-		Move_Server(Capsule->GetComponentLocation());
-}
-
-// rotate player and camera
-void APlayerPawn::Rotate(float LeftRight, float UpDown)
-{
-	// if not local player return
-	if (!IsLocallyControlled())
-		return;
-
-	// calculate yaw rotation and add to capsule
-	FRotator rotation = FRotator(0.0f, LeftRight * GetWorld()->GetDeltaSeconds() * RotationSpeed, 0.0f);
-	Capsule->AddLocalRotation(rotation);
-
-	// calculate pitch rotation
-	rotation = FRotator(UpDown * GetWorld()->GetDeltaSeconds() * RotationSpeed, 0.0f, 0.0f);
-
-	// if pitch rotation is out of bounds return
-	if (CameraRoot->RelativeRotation.Pitch + rotation.Pitch > 45.0f || CameraRoot->RelativeRotation.Pitch + rotation.Pitch < -45.0f)
-		return;
-
-	// add pitch rotation
-	CameraRoot->AddLocalRotation(rotation);
-
-	// if server move player on client
-	if (HasAuthority())
-		Rotate_Client(Capsule->GetComponentRotation().Yaw);
-
-	// if client move player on server
-	else
-		Rotate_Server(Capsule->GetComponentRotation().Yaw);
+		Move_Server(Capsule->GetComponentLocation());*/
 }
 
 // shoot a bullet
@@ -200,12 +193,47 @@ void APlayerPawn::Shoot()
 	if (!IsLocallyControlled())
 		return;
 
+	// if valid weapon target, target is range weapon and range not active
+	if (m_pWeaponTarget && m_pWeaponTarget->ComponentHasTag("Range") && !m_range)
+	{
+		// set range active true
+		m_range = true;
+
+		// set staic mesh of right hand to target
+		RightHand->SetStaticMesh(m_pWeaponTarget->GetStaticMesh());
+
+		// set transform of mesh only for now, mesh transform has to be correct
+		RightHand->SetRelativeLocation(FVector::ZeroVector);
+		RightHand->SetRelativeRotation(FRotator(-90.0f, 0.0f, 0.0f));
+		RightHand->SetRelativeScale3D(FVector(0.2f, 0.2f, 0.2f));
+		return;
+	}
+
+	// if valid weapon target, target is melee weapon and range active
+	else if (m_pWeaponTarget && m_pWeaponTarget->ComponentHasTag("Melee") && m_range)
+	{
+		// set range active false
+		m_range = false;
+
+		// set staic mesh of right hand to target
+		RightHand->SetStaticMesh(m_pWeaponTarget->GetStaticMesh());
+
+		// set transform of mesh only for now, mesh transform has to be correct
+		RightHand->SetRelativeLocation(FVector(50.0f, 0.0f, 0.0f));
+		RightHand->SetRelativeRotation(FRotator(-90.0f, 0.0f, 0.0f));
+		RightHand->SetRelativeScale3D(FVector(0.1f, 0.1f, 1.0f));
+	}
+
+	// if range not active return
+	if (!m_range)
+		return;
+
 	// if server
 	if (HasAuthority())
 	{
 		// spawn bullet
 		ABullet* pBullet = GetWorld()->SpawnActor<ABullet>(BulletClass,
-			SpawnPoint->GetComponentLocation(), CameraRoot->GetComponentRotation());
+			SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation());
 
 		// if bullet valid set owner of bullet to player
 		if(pBullet)
@@ -216,7 +244,7 @@ void APlayerPawn::Shoot()
 	else
 	{
 		// shoot bullet on server
-		Shoot_Server(SpawnPoint->GetComponentLocation(), CameraRoot->GetComponentRotation());
+		Shoot_Server(SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation());
 	}
 }
 
@@ -271,14 +299,27 @@ void APlayerPawn::Teleport()
 	m_teleportActive = false;
 }
 
+// set weapon switch target
+void APlayerPawn::SetWeaponTarget(UStaticMeshComponent* OtherComp)
+{
+	// set weapon target to other component
+	m_pWeaponTarget = OtherComp;
+}
+
+// collide weapon with other actor
+void APlayerPawn::CollideWeapon(AActor* OtherActor)
+{
+	// if other actor is enemy and range not active
+	if (OtherActor->ActorHasTag("Enemy") && !m_range)
+		// take damage on other actor
+		((ABaseCharacter*)(OtherActor))->TakeCharacterDamage(10.0f);
+}
+
 // spawn player on client implementation
 void APlayerPawn::SpawnPlayer_Client_Implementation(FVector _location)
 {
 	// set actor location to spawn point
 	SetActorLocation(_location);
-
-	// add actor offset by half height of capsule
-	AddActorWorldOffset(FVector(0.0f, 0.0f, Capsule->GetScaledCapsuleHalfHeight() * 1.01f));
 }
 
 // move player on server implementation
@@ -373,10 +414,11 @@ void APlayerPawn::Teleport_Client_Implementation(ATeleportPoint* _pTeleport)
 {
 	// set location of player to teleport and increase z value by capsule half height
 	SetActorLocation(_pTeleport->GetActorLocation());
-	AddActorWorldOffset(FVector(0.0f, 0.0f, Capsule->GetScaledCapsuleHalfHeight() * 1.01f));
 
 	// reset capsule relative location
-	Capsule->SetRelativeLocation(FVector::ZeroVector);
+	FVector offset = _pTeleport->GetActorLocation() - Camera->GetComponentLocation();
+	offset.Z = 0.0f;
+	AddActorWorldOffset(offset);
 
 	// set active teleport to teleport target
 	m_pActiveTeleport = _pTeleport;

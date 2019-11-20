@@ -46,6 +46,7 @@ void AMainGameMode::Tick(float DeltaTime)
 
 	// get random spawn location
 	FVector spawnPos = m_spawnPoints[FMath::RandRange(0, m_spawnPoints.Num() - 1)];
+	spawnPos.Z += 200.0f;
 
 	// spawn enemy at spawn location
 	AEnemy* pEnemy = (AEnemy*)(GetWorld()->SpawnActor<ABaseCharacter>(Waves[0].EnemyClass,

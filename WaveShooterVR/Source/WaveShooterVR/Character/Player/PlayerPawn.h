@@ -14,6 +14,7 @@ class UCapsuleComponent;
 class UCameraComponent;
 class ABullet;
 class ATeleportPoint;
+class UMotionControllerComponent;
 #pragma endregion
 
 UCLASS()
@@ -67,27 +68,27 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, VisibleDefaultsOnly, Category = "Player")
 	/// <summary>
-	/// rotation origin of camera
-	/// </summary>
-	USceneComponent* CameraRoot = nullptr;
-
-	UPROPERTY(BlueprintReadWrite, VisibleDefaultsOnly, Category = "Player")
-	/// <summary>
 	/// camera
 	/// </summary>
 	UCameraComponent* Camera = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, VisibleDefaultsOnly, Category = "Player")
+	/// <summary>
+	/// left hand static mesh
+	/// </summary>
+	UStaticMeshComponent* LeftHand = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, VisibleDefaultsOnly, Category = "Player")
+	/// <summary>
+	/// right hand static mesh
+	/// </summary>
+	UStaticMeshComponent* RightHand = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Movement")
 	/// <summary>
 	/// movement speed in cm per second
 	/// </summary>
 	float MovementSpeed = 450.0f;
-
-	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Movement")
-	/// <summary>
-	/// rotation speed in degree per seconds
-	/// </summary>
-	float RotationSpeed = 180.0f;
 #pragma endregion
 
 #pragma region UFUNCTION
@@ -98,14 +99,6 @@ public:
 	/// <param name="ForwardBack">forward and back value</param>
 	/// <param name="LeftRight">left and right value</param>
 	void Move(float ForwardBack, float LeftRight);
-
-	UFUNCTION(BlueprintCallable, Category = "Player")
-	/// <summary>
-	/// rotate player and camera
-	/// </summary>
-	/// <param name="LeftRight">left and right value</param>
-	/// <param name="UpDown">up and down value</param>
-	void Rotate(float LeftRight, float UpDown);
 
 	UFUNCTION(BlueprintCallable, Category = "Player")
 	/// <summary>
@@ -124,6 +117,20 @@ public:
 	/// teleport to location
 	/// </summary>
 	void Teleport();
+
+	UFUNCTION(BlueprintCallable, Category = "Player")
+	/// <summary>
+	/// set weapon switch target
+	/// </summary>
+	/// <param name="OtherComp">target static mesh component to set</param>
+	void SetWeaponTarget(UStaticMeshComponent* OtherComp);
+
+	UFUNCTION(BlueprintCallable, Category = "Player")
+	/// <summary>
+	/// collide weapon with other actor
+	/// </summary>
+	/// <param name="OtherActor">collide actor</param>
+	void CollideWeapon(AActor* OtherActor);
 
 	UFUNCTION(NetMulticast, Reliable)
 	/// <summary>
@@ -198,6 +205,11 @@ private:
 	/// show teleport locations active
 	/// </summary>
 	bool m_teleportActive = false;
+
+	/// <summary>
+	/// range weapon active
+	/// </summary>
+	bool m_range = true;
 #pragma endregion
 
 #pragma region private variable
@@ -208,6 +220,21 @@ private:
 #pragma endregion
 
 #pragma region private pointer
+	/// <summary>
+	/// left motion controller
+	/// </summary>
+	UMotionControllerComponent* m_pLeftController = nullptr;
+
+	/// <summary>
+	/// right motion controller
+	/// </summary>
+	UMotionControllerComponent* m_pRightController = nullptr;
+
+	/// <summary>
+	/// weapon to switch target
+	/// </summary>
+	UStaticMeshComponent* m_pWeaponTarget = nullptr;
+
 	/// <summary>
 	/// teleport target reference
 	/// </summary>
