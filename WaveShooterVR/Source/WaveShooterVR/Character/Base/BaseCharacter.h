@@ -101,4 +101,17 @@ public:
 	/// <param name="_damage">damage</param>
 	void TakeCharacterDamage(float _damage);
 #pragma endregion
+
+protected:
+#pragma region protected primitive variable
+	/// <summary>
+	/// update frequency for network movement in seconds
+	/// </summary>
+	float m_netUpdateFrequency = 0.2f;
+
+	/// <summary>
+	/// time until update movement via network
+	/// </summary>
+	float m_netUpdateTimer = 0.0f;
+#pragma endregion
 };

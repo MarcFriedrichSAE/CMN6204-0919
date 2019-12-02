@@ -150,8 +150,34 @@ public:
 	/// <summary>
 	/// move player on client
 	/// </summary>
-	/// <param name="_location"></param>
+	/// <param name="_location">location to move to</param>
 	void Move_Client(FVector _location);
+
+	UFUNCTION(Server, Unreliable, WithValidation)
+	/// <summary>
+	/// set tracking devices transform on server
+	/// </summary>
+	/// <param name="_locationCam">relative location of camera</param>
+	/// <param name="_angle">relative yaw angle of camera</param>
+	/// <param name="_locationLeft">relative location of left hand</param>
+	/// <param name="_rotationLeft">relative rotation of left hand</param>
+	/// <param name="_locationRight">relative location of right hand</param>
+	/// <param name="_rotationRight">relative rotation of right hand</param>
+	void SetTransforms_Server(FVector _locationCam, float _angle,
+		FVector _locationLeft, FRotator _rotationLeft, FVector _locationRight, FRotator _rotationRight);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	/// <summary>
+	/// set tracking devices transform on client
+	/// </summary>
+	/// <param name="_locationCam">relative location of camera</param>
+	/// <param name="_angle">relative yaw angle of camera</param>
+	/// <param name="_locationLeft">relative location of left hand</param>
+	/// <param name="_rotationLeft">relative rotation of left hand</param>
+	/// <param name="_locationRight">relative location of right hand</param>
+	/// <param name="_rotationRight">relative rotation of right hand</param>
+	void SetTransforms_Client(FVector _locationCam, float _angle,
+		FVector _locationLeft, FRotator _rotationLeft, FVector _locationRight, FRotator _rotationRight);
 
 	UFUNCTION(Server, Unreliable, WithValidation)
 	/// <summary>
@@ -213,6 +239,19 @@ private:
 #pragma endregion
 
 #pragma region private variable
+
+	FVector m_actMoveTo = FVector();
+
+	FVector m_camMoveTo = FVector();
+
+	float m_camAngleRotTo = 0.0f;
+
+	FVector m_leftMoveTo = FVector();
+	FVector m_rightMoveTo = FVector();
+
+	FRotator m_leftRotTo = FRotator();
+	FRotator m_rightRotTo = FRotator();
+
 	/// <summary>
 	/// all teleport locations
 	/// </summary>
@@ -244,5 +283,24 @@ private:
 	/// active teleport reference
 	/// </summary>
 	ATeleportPoint* m_pActiveTeleport = nullptr;
+#pragma endregion
+
+private:
+#pragma region private primitive variable
+	/// <summary>
+	/// update frequency for network movement in seconds
+	/// </summary>
+	float m_netUpdateFrequency = 0.2f;
+
+	/// <summary>
+	/// time until update movement via network
+	/// </summary>
+	float m_netUpdateTimer = 0.0f;
+#pragma endregion
+
+
+
+#pragma region private function
+	void SetCapsule();
 #pragma endregion
 };

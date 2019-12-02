@@ -31,9 +31,9 @@ APlayerPawn::APlayerPawn()
 	Camera = CreateDefaultSubobject<UCameraComponent>("Camera");
 	Camera->SetupAttachment(pRoot);
 
-	// create default capsule component and attach to camera
+	// create default capsule component and attach to root
 	Capsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Capsule"));
-	Capsule->SetupAttachment(Camera);
+	Capsule->SetupAttachment(pRoot);
 
 	// create default motion controller component and attach to root
 	m_pLeftController = CreateDefaultSubobject<UMotionControllerComponent>(TEXT("LeftController"));
@@ -73,6 +73,79 @@ void APlayerPawn::Tick(float DeltaTime)
 {
 	// parent update
 	Super::Tick(DeltaTime);
+
+	// if local player
+	if (IsLocallyControlled())
+	{
+		// increase net update timer
+		m_netUpdateTimer += DeltaTime;
+
+		// if net update timer lower than net update frequency return
+		if (m_netUpdateTimer < m_netUpdateFrequency)
+			return;
+
+		// reset net update timer
+		m_netUpdateTimer = 0.0f;
+
+		// if server
+		if (HasAuthority())
+		{
+			// set tracking devices transform on client
+			SetTransforms_Client(Camera->RelativeLocation, Camera->RelativeRotation.Yaw,
+				m_pLeftController->RelativeLocation, m_pLeftController->RelativeRotation,
+				m_pRightController->RelativeLocation, m_pRightController->RelativeRotation);
+
+			// move player on client
+			Move_Client(GetActorLocation());
+		}
+
+		// if client
+		else
+		{
+			// set tracking devices transform on server
+			SetTransforms_Server(Camera->RelativeLocation, Camera->RelativeRotation.Yaw,
+				m_pLeftController->RelativeLocation, m_pLeftController->RelativeRotation,
+				m_pRightController->RelativeLocation, m_pRightController->RelativeRotation);
+
+			// move player on server
+			Move_Server(GetActorLocation());
+		}
+	}
+
+	// if not local player
+	else
+	{
+		// move capsule by direction to move to
+		FVector direction = m_camMoveTo - Capsule->RelativeLocation;
+		Capsule->AddRelativeLocation(direction * DeltaTime);
+
+		// set capsule scale and location
+		SetCapsule();
+
+		// rotate capsule to angle
+		float angle = m_camAngleRotTo - Capsule->RelativeRotation.Yaw;
+		Capsule->AddRelativeRotation(FRotator(0.0f, angle * DeltaTime, 0.0f));
+
+		// move left controller to location to move to
+		direction = m_leftMoveTo - m_pLeftController->RelativeLocation;
+		m_pLeftController->AddRelativeLocation(direction * DeltaTime);
+
+		// move right controller to location to move to
+		direction = m_rightMoveTo - m_pRightController->RelativeLocation;
+		m_pRightController->AddRelativeLocation(direction * DeltaTime);
+
+		// rotate left controller to rotation to rotate to
+		FRotator rotateDirection = m_leftRotTo - m_pLeftController->RelativeRotation;
+		m_pLeftController->AddRelativeRotation(rotateDirection * DeltaTime);
+
+		// rotate right controller to rotation to rotate to
+		rotateDirection = m_rightRotTo - m_pRightController->RelativeRotation;
+		m_pRightController->AddRelativeRotation(rotateDirection * DeltaTime);
+
+		// move player to location to move to
+		direction = m_actMoveTo - GetActorLocation();
+		AddActorWorldOffset(direction * DeltaTime);
+	}
 
 	// if show teleport not active return
 	if (!m_teleportActive)
@@ -163,27 +236,43 @@ void APlayerPawn::Tick(float DeltaTime)
 // move player
 void APlayerPawn::Move(float ForwardBack, float LeftRight)
 {
-	/// TODO: move in vr
-
-	/*// if not local player return
+	// if not local player return
 	if (!IsLocallyControlled())
 		return;
 
+	// set capsule to camera
+	Capsule->SetRelativeLocation(Camera->RelativeLocation);
+
+	// reset scale of capsule
+	Capsule->SetRelativeScale3D(FVector::OneVector);
+
+	// set capsule half height depending on camera location z
+	Capsule->SetCapsuleHalfHeight(0.5f * Camera->RelativeLocation.Z);
+
+	// add capsule location to negative half height
+	Capsule->AddRelativeLocation(FVector(0.0f, 0.0f, -Capsule->GetUnscaledCapsuleHalfHeight() + 1.0f));
+
 	// calculate direction to move to
-	FVector dir = Capsule->GetForwardVector() * ForwardBack;
-	dir += Capsule->GetRightVector() * LeftRight;
+	FVector dir = Camera->GetForwardVector() * ForwardBack;
+	dir += Camera->GetRightVector() * LeftRight;
 	dir *= GetWorld()->GetDeltaSeconds() * MovementSpeed;
+	dir.Z = 0.0f;
 
-	// try to add world offset with collision detection
-	Capsule->AddWorldOffset(dir, true);
+	// hit result of movement
+	FHitResult hit;
 
-	// if server move player on client
-	if (HasAuthority())
-		Move_Client(Capsule->GetComponentLocation());
-	
-	// if client move player on server
-	else
-		Move_Server(Capsule->GetComponentLocation());*/
+	// try to add world offset by direction
+	Capsule->AddWorldOffset(dir, true, &hit);
+
+	// if movement hit anything return
+	if (hit.bBlockingHit)
+		return;
+
+	// move actor to new location
+	AddActorWorldOffset(dir);
+
+	// move capsule back
+	Capsule->AddWorldOffset(-dir);
 }
 
 // shoot a bullet
@@ -339,9 +428,41 @@ bool APlayerPawn::Move_Server_Validate(FVector _location)
 void APlayerPawn::Move_Client_Implementation(FVector _location)
 {
 	// if not local player
-	if(!IsLocallyControlled())
+	if (!IsLocallyControlled())
 		// set world location of capsule
-		Capsule->SetWorldLocation(_location);
+		m_actMoveTo = _location;
+}
+
+// set tracking devices transform on server validate
+bool APlayerPawn::SetTransforms_Server_Validate(FVector _locationCam, float _angle,
+	FVector _locationLeft, FRotator _rotationLeft, FVector _locationRight, FRotator _rotationRight)
+{
+	return true;
+}
+
+// set tracking devices transform on server implementation
+void APlayerPawn::SetTransforms_Server_Implementation(FVector _locationCam, float _angle,
+	FVector _locationLeft, FRotator _rotationLeft, FVector _locationRight, FRotator _rotationRight)
+{
+	// set tracking devices transform on client
+	SetTransforms_Client(_locationCam, _angle, _locationLeft, _rotationLeft, _locationRight, _rotationRight);
+}
+
+// set tracking devices transform on client implementation
+void APlayerPawn::SetTransforms_Client_Implementation(FVector _locationCam, float _angle,
+	FVector _locationLeft, FRotator _rotationLeft, FVector _locationRight, FRotator _rotationRight)
+{
+	// if local player return
+	if (IsLocallyControlled())
+		return;
+
+	// set locations to move to and rotation to rotate to
+	m_camMoveTo = _locationCam - FVector(0.0f, 0.0f, Capsule->GetScaledCapsuleHalfHeight());
+	m_camAngleRotTo = _angle;
+	m_leftMoveTo = _locationLeft;
+	m_rightMoveTo = _locationRight;
+	m_leftRotTo = _rotationLeft;
+	m_rightRotTo = _rotationRight;
 }
 
 // rotate player on server implementation
@@ -401,6 +522,17 @@ void APlayerPawn::Teleport_Server_Implementation(ATeleportPoint* _pTeleport, ATe
 
 	// set teleport target in use
 	_pTeleport->InUse = true;
+
+	// set location of player to teleport and increase z value by capsule half height
+	SetActorLocation(_pTeleport->GetActorLocation());
+
+	// reset capsule relative location
+	FVector offset = _pTeleport->GetActorLocation() - Camera->GetComponentLocation();
+	offset.Z = 0.0f;
+	AddActorWorldOffset(offset);
+
+	// set active teleport to teleport target
+	m_pActiveTeleport = _pTeleport;
 }
 
 // teleport player on server validate
@@ -466,5 +598,26 @@ void APlayerPawn::BeginPlay()
 		SpawnPlayer_Client(pSpawn->GetActorLocation());
 		break;
 	}
+}
+#pragma endregion
+
+#pragma region private function
+// set scale and location of capsule
+void APlayerPawn::SetCapsule()
+{
+	// if local player return
+	if (IsLocallyControlled())
+		return;
+
+	// set capsule half height to 50 and scale depending on half height and camera location z
+	Capsule->SetCapsuleHalfHeight(50.0f);
+	Capsule->SetRelativeScale3D(FVector(1.0f, 1.0f, (Capsule->RelativeLocation.Z + Capsule->GetScaledCapsuleHalfHeight()) / 100.0f));
+
+	// set relative location of capsule on z by scaled half height
+	Capsule->SetRelativeLocation(FVector(Capsule->RelativeLocation.X, Capsule->RelativeLocation.Y, Capsule->GetScaledCapsuleHalfHeight()));
+
+	// set mesh scale and location depending on capsule
+	Mesh->SetRelativeScale3D(FVector(1.0f, 1.0f, 0.55f));
+	Mesh->SetRelativeLocation(FVector(Mesh->RelativeLocation.X, Mesh->RelativeLocation.Y, -Capsule->GetUnscaledCapsuleHalfHeight()));
 }
 #pragma endregion

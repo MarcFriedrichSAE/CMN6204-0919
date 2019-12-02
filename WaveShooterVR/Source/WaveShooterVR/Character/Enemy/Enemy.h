@@ -29,6 +29,14 @@ public:
 	AEnemy();
 #pragma endregion
 
+#pragma region public override function
+	/// <summary>
+	/// update every frame
+	/// </summary>
+	/// <param name="DeltaTime">time since last frame</param>
+	virtual void Tick(float DeltaTime) override;
+#pragma endregion
+
 #pragma region UPROPERTY
 	UPROPERTY(BlueprintReadWrite, EditDefaultsOnly, Category = "Enemy")
 	/// <summary>
@@ -37,12 +45,13 @@ public:
 	float ShotRange = 250.0f;
 #pragma endregion
 
-#pragma region public override function
+#pragma region UFUNCTION
+	UFUNCTION(NetMulticast, Unreliable)
 	/// <summary>
-	/// update every frame
+	/// set location to move to on client
 	/// </summary>
-	/// <param name="DeltaTime">time since last frame</param>
-	virtual void Tick(float DeltaTime) override;
+	/// <param name="_location">location to move to</param>
+	void SetMoveTo_Client(FVector _location);
 #pragma endregion
 
 #pragma region public inline function
@@ -85,6 +94,11 @@ private:
 #pragma endregion
 
 #pragma region private variable
+	/// <summary>
+	/// location to move to if client
+	/// </summary>
+	FVector m_moveTo = FVector();
+
 	/// <summary>
 	/// target location
 	/// </summary>
