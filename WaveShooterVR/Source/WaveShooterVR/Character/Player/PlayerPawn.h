@@ -14,6 +14,7 @@ class UCapsuleComponent;
 class UCameraComponent;
 class ABullet;
 class ATeleportPoint;
+class AStaticMeshActor;
 class UMotionControllerComponent;
 #pragma endregion
 
@@ -132,6 +133,14 @@ public:
 	/// <param name="OtherActor">collide actor</param>
 	void CollideWeapon(AActor* OtherActor);
 
+	UFUNCTION(BlueprintCallable, Category = "Player")
+	/// <summary>
+	/// spawn cube
+	/// </summary>
+	/// <param name="Cube">cube subclass to spawn</param>
+	/// <param name="Force">force to add</param>
+	void SpawnCube(TSubclassOf<AStaticMeshActor> Cube, float Force);
+
 	UFUNCTION(NetMulticast, Reliable)
 	/// <summary>
 	/// spawn player on client
@@ -236,21 +245,48 @@ private:
 	/// range weapon active
 	/// </summary>
 	bool m_range = true;
+
+	/// <summary>
+	/// camera angle to rotate camera to
+	/// </summary>
+	float m_camAngleRotTo = 0.0f;
 #pragma endregion
 
 #pragma region private variable
-
+	/// <summary>
+	/// position to move actor to
+	/// </summary>
 	FVector m_actMoveTo = FVector();
 
+	/// <summary>
+	/// position to move camera to
+	/// </summary>
 	FVector m_camMoveTo = FVector();
 
-	float m_camAngleRotTo = 0.0f;
-
+	/// <summary>
+	/// position to move left hand to
+	/// </summary>
 	FVector m_leftMoveTo = FVector();
+
+	/// <summary>
+	/// postition to move right hand to
+	/// </summary>
 	FVector m_rightMoveTo = FVector();
 
+	/// <summary>
+	/// angle to rotate left hand to
+	/// </summary>
 	FRotator m_leftRotTo = FRotator();
+
+	/// <summary>
+	/// angle to rotate right hand to
+	/// </summary>
 	FRotator m_rightRotTo = FRotator();
+
+	/// <summary>
+	/// right hand location to calculate throw velocity
+	/// </summary>
+	TArray<FVector> m_rightHandLocations;
 
 	/// <summary>
 	/// all teleport locations
@@ -297,8 +333,6 @@ private:
 	/// </summary>
 	float m_netUpdateTimer = 0.0f;
 #pragma endregion
-
-
 
 #pragma region private function
 	void SetCapsule();

@@ -13,6 +13,7 @@
 #include "MotionControllerComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/StaticMeshActor.h"
 #include "DrawDebugHelpers.h" // only for debug line
 #pragma endregion
 
@@ -77,6 +78,13 @@ void APlayerPawn::Tick(float DeltaTime)
 	// if local player
 	if (IsLocallyControlled())
 	{
+		// add current right hand location
+		m_rightHandLocations.Add(RightHand->GetComponentLocation());
+
+		// if number of right hand location more than ten remove first location
+		if (m_rightHandLocations.Num() > 10)
+			m_rightHandLocations.RemoveAt(0);
+
 		// increase net update timer
 		m_netUpdateTimer += DeltaTime;
 
@@ -402,6 +410,34 @@ void APlayerPawn::CollideWeapon(AActor* OtherActor)
 	if (OtherActor->ActorHasTag("Enemy") && !m_range)
 		// take damage on other actor
 		((ABaseCharacter*)(OtherActor))->TakeCharacterDamage(10.0f);
+}
+
+// spawn cube
+void APlayerPawn::SpawnCube(TSubclassOf<AStaticMeshActor> Cube, float Force)
+{
+	// if not local player return
+	if (!IsLocallyControlled())
+		return;
+
+	// spawn subclass at spawn point
+	AStaticMeshActor* pCube = GetWorld()->SpawnActor<AStaticMeshActor>(Cube, SpawnPoint->GetComponentLocation(), SpawnPoint->GetComponentRotation());
+
+	// direction to throw
+	FVector forceDirection;
+
+	// add every saved right hand location
+	for (FVector vec : m_rightHandLocations)
+		forceDirection += vec;
+
+	// calculate average direction
+	forceDirection /= m_rightHandLocations.Num();
+
+	// calculate correct direction from hand to target and inverse
+	forceDirection -= RightHand->GetComponentLocation();
+	forceDirection *= -1;
+
+	// add impulse to direction by force
+	pCube->GetStaticMeshComponent()->AddImpulse(forceDirection * Force);
 }
 
 // spawn player on client implementation

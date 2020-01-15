@@ -31,7 +31,11 @@ public:
 	/// static mesh component
 	/// </summary>
 	UStaticMeshComponent* Mesh = nullptr;
-#pragma endregion
+
 	UPROPERTY(Replicated)
+	/// <summary>
+	/// if teleport is in use
+	/// </summary>
 	bool InUse = false;
+#pragma endregion
 };
